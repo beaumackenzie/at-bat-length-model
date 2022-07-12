@@ -12,8 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 
 
-#'* NO MORE CODING WITHOUT COMMENTING, NO MATTER HOW CASUAL *
-
 library(baseballr)
 
 library(dplyr)
