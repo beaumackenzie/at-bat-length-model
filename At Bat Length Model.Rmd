@@ -446,7 +446,6 @@ abpredictor <- function(bfirstname, blastname, pfirstname, plastname, eventsdtbl
     abdtbl$handsame[1] <- 0
   }
   
-  #'* NEED TO CHANGE THIS IF YOU CHANGE HOW THE METRIC IS CREATED UP TOP *
   
   abdtbl$allnonhrhitpct <- ((abdtbl$hsinglepct + abdtbl$hdoublepct + abdtbl$htriplepct) + 1.24*abdtbl$nonhrhitpct)/2.24
   
@@ -469,30 +468,11 @@ abpredictor <- function(bfirstname, blastname, pfirstname, plastname, eventsdtbl
   return(abdtbl[1,])
 }
 
-#'[ high fastball called strike rate
 
 
 abresult <- function(hitterfirst, hittersecond, pitcherfirst, pitchersecond, on1b, on2b, outs) {
   #'[ Function returning the weights of the at bat. Also converts it into American odds.
   
-  #specificatbat <- abpredictor(hitterfirst, hittersecond, pitcherfirst, pitchersecond, alleventsab)
-  
-  #'* CHANGE THE MODEL TYPE TO CARET/ZIPS WHEN NEEDED *
-  #'
-  #'nhr0 <- 0.1672203
-  # hr0 <- specificatbat$hrpct
-  # so0 <- specificatbat$SOpct
-  # bb0 <- specificatbat$BBplushbppct
-  # ipo0 <- specificatbat$in_play_outpct
-  # hdub0 <- specificatbat$hdoublepct
-  # hsame <- specificatbat$handsame
-  # 
-  # 
-  # observedprop <- alleventsdf %>% filter(allnonhrhitpct > (nhr0-.015), allnonhrhitpct < (nhr0 + .015), hrpct > (hr0 -.015), hrpct < (hr0 +.015), SOpct > (so0 - .015), SOpct < (so0 + .015), BBplushbppct > (bb0 - .015), BBplushbppct < (bb0 + .015), in_play_outpct > (ipo0 - .015), in_play_outpct < (ipo0 + .015), hdoublepct > (hdub0 - .015), hdoublepct < (hdub0 + .015), handsame == hsame)
-  # 
-  # 
-  # abres <- prop.table(table(observedprop$events))
-
   abres <- colMeans(predict(play.fit.caret.zips.ab, abpredictor(hitterfirst, hittersecond, pitcherfirst, pitchersecond, alleventsab, on1b, on2b, outs),  type = "prob"))
   
   u3.5 <- sum(na.omit(abres[1:3]))
