@@ -1,0 +1,560 @@
+---
+title: "At Bat Length Model"
+author: "Beau Mackenzie"
+date: '2022-07-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+
+#'* NO MORE CODING WITHOUT COMMENTING, NO MATTER HOW CASUAL *
+
+library(baseballr)
+
+library(dplyr)
+
+library(tidyr)
+
+library(stringi)
+
+options(warn=-1)
+
+#'[ Scraping each week from the baseballr package. The api struggles to upload more than 40,000 rows of data, so it works to scrape each week and then rbind all of them together.
+
+week1 <- scrape_statcast_savant(start_date = "2022-04-01",
+  end_date = "2022-04-10")
+
+week2 <- scrape_statcast_savant(start_date = "2022-04-11",
+  end_date = "2022-04-18")
+
+week3 <- scrape_statcast_savant(start_date = "2022-04-19",
+  end_date = "2022-04-26")
+
+week4 <- scrape_statcast_savant(start_date = "2022-04-27",
+  end_date = "2022-05-02")
+
+week5 <- scrape_statcast_savant(start_date = "2022-05-03",
+  end_date = "2022-05-10")
+
+week6 <- scrape_statcast_savant(start_date = "2022-05-11",
+  end_date = "2022-05-18")
+
+week6 <- scrape_statcast_savant(start_date = "2022-05-19",
+  end_date = "2022-05-26")
+
+week6 <- scrape_statcast_savant(start_date = "2022-05-27",
+  end_date = "2022-06-01")
+
+week7 <- scrape_statcast_savant(start_date = "2022-06-02",
+  end_date = "2022-06-09")
+
+week8 <- scrape_statcast_savant(start_date = "2022-06-10",
+  end_date = "2022-06-17")
+
+week9 <- scrape_statcast_savant(start_date = "2022-06-18",
+  end_date = "2022-06-25")
+
+week10 <- scrape_statcast_savant(start_date = "2022-06-26",
+  end_date = "2022-07-01")
+
+week11 <- scrape_statcast_savant(start_date = "2022-07-02",
+  end_date = "2022-07-04")
+
+#'[ rbind each week. Change the dates above when needed and add to the function when needed. 
+
+allpitches <- rbind(week1,week2,week3,week4,week5,week6,week7,week8,week9, week10, week11)
+
+
+#'[ minimum opportunities for sprint speed = 10, this also gives a better hitting sample size
+#'[ Template of all hitter names from the sprint speed leaderboard from statcast.
+
+sprintspeed <- read.csv("sprint_speed.csv")
+
+#'[ Just taking all the necessary columns
+hittersab <- sprintspeed %>% select(last_name, first_name, player_id, sprint_speed, team)
+
+
+#'[ Turn this into a function for getting hitter's raw metrics
+
+hitterstats <- function(alldb,hitterdb) {
+  #'[ Input all pitches and then the database of hitter names
+  
+  
+  i <- 1
+  while(i <= length(hitterdb$player_id)) {
+    #'[ Loop through each hitter. Each hitter only appears once on the leaderboard
+    
+    
+    all <- alldb %>% filter(batter == hitterdb$player_id[i])
+    #'[ Creating database of only that hitter's pitches
+    
+    
+    if("L" %in% all$stand & "R" %in% all$stand){
+      
+      hitterdb$handedness[i] <- "S"
+    }
+    
+    if(("L" %in% all$stand) & !("R" %in% all$stand)){
+      
+      hitterdb$handedness[i] <- "L"
+    }
+    
+    if(!("L" %in% all$stand) & ("R" %in% all$stand)){
+      
+      hitterdb$handedness[i] <- "R"
+    }
+    
+    #'[ Loops through and finds the handedness of the hitter and then marks that in a new column
+      
+    
+    #'[ Creates a unique at bat id for each at bat by multiplying the number of the at bat within the game squared times the game id squared
+    
+    all$abid <- (all$game_pk**2)*(all$at_bat_number**2)
+    
+    
+    #'[ A table of the column shows how many time each at bat id is repeated, so each number of the table is the length of each at bat
+    #'
+    hitterdb$ablengthh[i] <- mean(table(all$abid))
+    
+    
+    #'[ Next hitter
+    i <- i  + 1
+    
+  }
+  
+  return(hitterdb)
+  
+}
+
+
+#'[ Hitters database with added stats
+hittersab <- hitterstats(allpitches, hittersab)
+
+hittersab <- na.omit(hittersab)
+
+sd(hittersab$ablengthh)
+
+
+
+#'[ Swing take takes all the pitchers with high enough samples. Also the name is accurate to the scraped data.
+pitchers <- read.csv("swing-take.csv")
+
+pitchersab <- pitchers %>% select(last_name, first_name, player_id)
+
+#'[ Getting the average approach angles for pitchers
+
+
+pitcherstats <- function(alldb, pitcherdb) {
+  
+
+  i <- 1
+  while(i <= length(pitcherdb$player_id)) {
+    
+    allpitcher <- alldb %>% filter(pitcher == pitcherdb$player_id[i])
+    
+    #'[ Get the data for the specific player
+    
+    
+    if("R" %in% allpitcher$p_throws) {
+      
+      pitcherdb$handednessp[i] <- "R"
+    } else {
+           
+      pitcherdb$handednessp[i] <- "L"
+    }
+    
+    #'[ Finding pitcher handedness
+    
+    
+    allpitcher$abid <- (allpitcher$game_pk**2)*(allpitcher$at_bat_number**2)
+    
+    pitcherdb$ablengthp[i] <- mean(table(allpitcher$abid))
+    
+     
+    
+    #'[ Adding the stats and next pitcher
+    i <- i+1
+    
+  }
+  
+  # #'[ Makes the metric centered around zero - ideally you would want a mid level of movement bins
+  # 
+  # pitcherdb$movebin <- abs(pitcherdb$movebin - mean(pitcherdb$movebin))
+  
+  return(pitcherdb)
+
+}
+
+
+pitchersab <- pitcherstats(allpitches, pitchersab)
+
+pitchersab <- na.omit(pitchersab)
+
+
+sd(hittersab$ablengthh)/sd(pitchersab$ablengthp)
+
+
+
+#'[ Reading in hitters file
+hzip <- read.csv("Hitters Zips ROS.csv")
+
+#'[ Creating the percentage columns for each of the outcomes.
+hzip$hsinglepct <- (hzip$H = (hzip$X2B + hzip$X3B + hzip$HR))/hzip$PA
+
+hzip$hdoublepct <- hzip$X2B/hzip$PA
+
+hzip$htriplepct <- hzip$X3B/hzip$PA
+
+hzip$hhrpct <- hzip$HR/hzip$PA
+
+hzip$hSOpct <- hzip$SO/hzip$PA
+
+hzip$hBBplushbppct <- (hzip$BB+hzip$HBP)/hzip$PA
+
+hzip$hin_play_outpct <- (hzip$PA - (hzip$H + hzip$SO + hzip$BB + hzip$HBP))/hzip$PA
+
+
+#'[ Reading in pitcher's zips file
+
+
+pzip <- read.csv("Pitchers Zips ROS.csv")
+
+#'[ Adding a plate appearance column for pitchers
+
+pzip$PA <- pzip$H + pzip$BB + pzip$IP*3
+
+#'[ Creating the attribute columns for pitchers
+
+pzip$nonhrhitpct <- (pzip$H - (pzip$HR))/pzip$PA
+
+pzip$phrpct <- pzip$HR/pzip$PA
+
+pzip$pSOpct <- pzip$SO/pzip$PA
+
+pzip$pBBplushbppct <- pzip$BB/pzip$PA
+
+pzip$pin_play_outpct <- (pzip$PA - (pzip$H + pzip$SO + pzip$BB))/pzip$PA
+
+
+
+#'[ Separating the name columns into first and last
+
+hzip <- extract(hzip, Name, c("first_name", "last_name"), "([^ ]+) (.*)")
+
+pzip <- extract(pzip, Name, c("first_name", "last_name"), "([^ ]+) (.*)")
+
+#'[ Selecting for the necessary columns
+
+hzip <- hzip %>% select(last_name, first_name, hsinglepct, hdoublepct, htriplepct, hhrpct, hSOpct, hBBplushbppct, hin_play_outpct)
+pzip <- pzip %>% select(last_name, first_name, nonhrhitpct, phrpct, pSOpct, pBBplushbppct, pin_play_outpct)
+
+#'[ Trimming the space before the first name in hitters and pitchers so they can join properly
+
+hittersab$first_name <- trimws(hittersab$first_name, which = c("left"))
+pitchersab$first_name <- trimws(pitchersab$first_name, which = c('left'))
+
+
+#'[ Left joining the two dataframes together to get the zips data
+
+hittersabplus <- left_join(x = hittersab, y = hzip, by = c('last_name' = 'last_name', 'first_name' = 'first_name'))
+pitchersabplus <- left_join(x = pitchersab, y = pzip, by = c('last_name' = 'last_name', 'first_name' = 'first_name'))
+
+
+#'[ Filtering out the data so you only get the result of the at bat and the hitter and pitcher's names to identify.
+
+
+allpitchesab <- allpitches
+
+
+allpitchesab$abid <- (allpitchesab$game_pk**2)*(allpitchesab$at_bat_number**2)
+
+
+allpitchesab$ablengthobs <- table(allpitchesab$abid)[as.character(allpitchesab$abid)]
+
+
+alleventsab <- allpitchesab[!is.na(allpitchesab$events),]
+
+
+#'[ Adds a 1 if there was a runner on that particular base or not
+
+alleventsab$on_1b <- ifelse(is.na(alleventsab$on_1b), 0, 1)
+
+alleventsab$on_2b <- ifelse(is.na(alleventsab$on_2b), 0, 1)
+
+
+
+alleventsab <- alleventsab %>% select(player_name, batter, pitcher, on_1b, on_2b, outs_when_up, ablengthobs)
+
+
+#'[ Just get he identifying data so we can add the raw metrics to it
+
+
+#'[ Only including pitchers and hitters that we have. Important because it insures these players have a large enough sample size.
+
+
+alleventsab <- left_join(x = alleventsab, y = hittersabplus, by = c('batter' = 'player_id'))
+
+alleventsab <- left_join(x = alleventsab, y = pitchersabplus, by = c('pitcher' = 'player_id'))
+
+alleventsab <- na.omit(alleventsab)
+
+#'[ Averaging all the zips stats between the pitcher and hitter for the atbat
+
+alleventsab$allnonhrhitpct <- ((alleventsab$hsinglepct + alleventsab$hdoublepct + alleventsab$htriplepct) + 1.24*alleventsab$nonhrhitpct)/2.24
+
+alleventsab$hrpct <- (1.78*alleventsab$hhrpct + alleventsab$phrpct)/2.78
+
+alleventsab$SOpct <- (1.23*alleventsab$hSOpct + alleventsab$pSOpct)/2.23
+
+alleventsab$BBplushbppct <- (1.28*alleventsab$hBBplushbppct + alleventsab$pBBplushbppct)/2.28
+
+alleventsab$in_play_outpct <- (1.91*alleventsab$hin_play_outpct + alleventsab$pin_play_outpct)/2.91
+
+alleventsab$allablength <- (1.21*alleventsab$ablengthh + alleventsab$ablengthp)/2.21
+
+
+
+#'[ There should be data in every cell, so take away things such as hitters with a low sample and no attack angle.
+
+
+
+i <- 1
+while (i <= length(alleventsab$batter)) {
+  
+  #'[ Adding the column of whether or not the players are facing the same or different handed pitcher. Switch hitters will have an 'S', so they will never be equal to the hand of the pitcher.
+  
+  if(alleventsab$handedness[i] == alleventsab$handednessp[i]) {
+    
+    alleventsab$handsame[i] <- 1
+  } else {
+    
+    alleventsab$handsame[i] <- 0
+  }
+  
+  i <- i+1
+}
+
+
+
+library(stringi)
+
+#'[ Taking the accents out of the player names so they are easier to type quickly in the below functions
+
+alleventsab$last_name.x <- stri_trans_general(str = alleventsab$last_name.x, id = "Latin-ASCII")
+
+alleventsab$first_name.x <- stri_trans_general(str = alleventsab$first_name.x, id = "Latin-ASCII")
+
+alleventsab$last_name.y <- stri_trans_general(str = alleventsab$last_name.y, id = "Latin-ASCII")
+
+alleventsab$first_name.y <- stri_trans_general(str = alleventsab$first_name.y, id = "Latin-ASCII")
+
+
+
+
+
+
+```
+
+
+
+
+
+```{r}
+
+
+
+library(dplyr)
+library(e1071)
+library(RWeka)
+library(caTools)
+library(caret)
+
+library(rlang)
+
+
+
+
+alleventsabtrain <- alleventsab[25000:length(alleventsab$SOpct),]
+
+
+
+require(caret)
+play.fit.caret.zips.ab <- train(as.factor(ablengthobs) ~ SOpct + BBplushbppct + allnonhrhitpct + hrpct + in_play_outpct + handsame + hdoublepct + allablength + on_2b + on_1b + outs_when_up, data = alleventsabtrain, method = 'nnet', trControl = trainControl(method = 'cv'))
+
+
+
+
+#play.fit.zips.ab <- J48(as.factor(ablengthobs) ~ SOpct + BBplushbppct + allnonhrhitpct + hrpct + in_play_outpct + handsame + hdoublepct + allablength + on_2b + on_1b + outs_when_up, data = alleventsabtrain)
+
+
+#'[ Playground for finding how accurately the model predicts the at bat length for particular hitters
+
+alleventsabtest <- alleventsab %>% filter(last_name.x %in% c("Cruz") & first_name.x %in% c("Nelson"))
+
+
+
+colMeans(predict(play.fit.caret.zips.ab, alleventsabtest, type = "prob"))
+
+
+prop.table(table(alleventsabtest$ablengthobs))
+
+
+
+
+
+
+
+abpredictor <- function(bfirstname, blastname, pfirstname, plastname, eventsdtbl, outs, on1b, on2b) {
+  #'[ For adding in specific pitchers and hitters
+  #'[ Creates a one row data table with the data to predict the at bat.
+  
+  abdtbl <- eventsdtbl
+  
+  hitterdtbl <- eventsdtbl %>% filter(first_name.x == bfirstname, last_name.x == blastname)
+  
+  abdtbl$first_name.x[1] = hitterdtbl$first_name.x[1]
+  abdtbl$last_name.x[1] = hitterdtbl$last_name.x[1]
+  abdtbl$handedness[1] = hitterdtbl$handedness[1]
+  abdtbl$hsinglepct[1] = hitterdtbl$hsinglepct[1]
+  abdtbl$hdoublepct[1] = hitterdtbl$hdoublepct[1]
+  abdtbl$htriplepct[1] = hitterdtbl$htriplepct[1]
+  abdtbl$hhrpct[1] = hitterdtbl$hhrpct[1]
+  abdtbl$hSOpct[1] = hitterdtbl$hSOpct[1]
+  abdtbl$hBBplushbppct[1] = hitterdtbl$hBBplushbppct[1]
+  abdtbl$hin_play_outpct[1] = hitterdtbl$hin_play_outpct[1]
+  abdtbl$ablengthh[1] = hitterdtbl$ablengthh[1]
+  
+  pitcherdtbl <- eventsdtbl %>% filter(first_name.y == pfirstname, last_name.y == plastname)
+  
+  abdtbl$first_name.y[1] = pitcherdtbl$first_name.y[1]
+  abdtbl$last_name.y[1] = pitcherdtbl$last_name.y[1]
+  abdtbl$phrpct[1] = pitcherdtbl$phrpct[1]
+  abdtbl$pSOpct[1] = pitcherdtbl$pSOpct[1]
+  abdtbl$pBBplushbppct[1] = pitcherdtbl$pBBplushbppct[1]
+  abdtbl$pin_play_outpct[1] = pitcherdtbl$pin_play_outpct[1]
+  abdtbl$nonhrhitpct[1] = pitcherdtbl$nonhrhitpct[1]
+  abdtbl$ablengthp[1] = pitcherdtbl$ablengthp[1]
+  
+  if(abdtbl$handedness[1] == abdtbl$handednessp[1]) {
+    
+    abdtbl$handsame[1] <- 1
+  } else {
+    
+    abdtbl$handsame[1] <- 0
+  }
+  
+  #'* NEED TO CHANGE THIS IF YOU CHANGE HOW THE METRIC IS CREATED UP TOP *
+  
+  abdtbl$allnonhrhitpct <- ((abdtbl$hsinglepct + abdtbl$hdoublepct + abdtbl$htriplepct) + 1.24*abdtbl$nonhrhitpct)/2.24
+  
+  abdtbl$hrpct <- (1.78*abdtbl$hhrpct + abdtbl$phrpct)/2.78
+  
+  abdtbl$SOpct <- (1.23*abdtbl$hSOpct + abdtbl$pSOpct)/2.23
+  
+  abdtbl$BBplushbppct <- (1.28*abdtbl$hBBplushbppct + abdtbl$pBBplushbppct)/2.28
+  
+  abdtbl$in_play_outpct <- (1.91*abdtbl$hin_play_outpct + abdtbl$pin_play_outpct)/2.91
+  
+  abdtbl$allablength <- (1.21*abdtbl$ablengthh + abdtbl$ablengthp)/2.21
+  
+  abdtbl$on_1b = on1b
+  
+  abdtbl$on_2b = on2b
+  
+  abdtbl$outs_when_up = outs
+
+  return(abdtbl[1,])
+}
+
+#'[ high fastball called strike rate
+
+
+abresult <- function(hitterfirst, hittersecond, pitcherfirst, pitchersecond, on1b, on2b, outs) {
+  #'[ Function returning the weights of the at bat. Also converts it into American odds.
+  
+  #specificatbat <- abpredictor(hitterfirst, hittersecond, pitcherfirst, pitchersecond, alleventsab)
+  
+  #'* CHANGE THE MODEL TYPE TO CARET/ZIPS WHEN NEEDED *
+  #'
+  #'nhr0 <- 0.1672203
+  # hr0 <- specificatbat$hrpct
+  # so0 <- specificatbat$SOpct
+  # bb0 <- specificatbat$BBplushbppct
+  # ipo0 <- specificatbat$in_play_outpct
+  # hdub0 <- specificatbat$hdoublepct
+  # hsame <- specificatbat$handsame
+  # 
+  # 
+  # observedprop <- alleventsdf %>% filter(allnonhrhitpct > (nhr0-.015), allnonhrhitpct < (nhr0 + .015), hrpct > (hr0 -.015), hrpct < (hr0 +.015), SOpct > (so0 - .015), SOpct < (so0 + .015), BBplushbppct > (bb0 - .015), BBplushbppct < (bb0 + .015), in_play_outpct > (ipo0 - .015), in_play_outpct < (ipo0 + .015), hdoublepct > (hdub0 - .015), hdoublepct < (hdub0 + .015), handsame == hsame)
+  # 
+  # 
+  # abres <- prop.table(table(observedprop$events))
+
+  abres <- colMeans(predict(play.fit.caret.zips.ab, abpredictor(hitterfirst, hittersecond, pitcherfirst, pitchersecond, alleventsab, on1b, on2b, outs),  type = "prob"))
+  
+  u3.5 <- sum(na.omit(abres[1:3]))
+    
+  o3.5 <- sum(na.omit(abres[4:16]))
+    
+  u4.5 <- sum(na.omit(abres[1:4]))
+  
+  o4.5 <- sum(na.omit(abres[5:16]))
+  
+  
+  overunders <- c(u3.5, o3.5, u4.5, o4.5)
+  
+  i <- 1
+  while(i <= length(overunders)) {
+
+    if(overunders[i] < .5) {
+
+      overunders[i] <- ((1-overunders[i])/overunders[i])*100
+    } else {
+
+      overunders[i] <- -(overunders[i]/(1-overunders[i]))*100
+    }
+
+    i <- i+1
+  }
+
+   print(paste("o3.5 ", round(overunders[2]), "     u3.5 ", round(overunders[1]), "           o4.5 ", round(overunders[4]), "     u4.5 ", round(overunders[3]), sep = ""))
+  
+}
+
+
+#'[ Boom
+#'
+
+
+#'[ last three numbers are runner on first, runner on second, and number of outs
+
+
+
+abresult("Miguel", "Cabrera", "Johnny", "Cueto", 1, 0, 2)
+
+
+
+abresult("Ramon", "Urias", "Raisel", "Iglesias", 0, 0, 0)
+
+
+abresult("Ehire", "Adrianza", "Kyle", "Wright", 0, 0, 2)
+
+
+abresult("Aaron", "Hicks", "Kutter", "Crawford", 1, 0, 2)
+
+
+
+
+
+
+
+```
+
+
+
+
